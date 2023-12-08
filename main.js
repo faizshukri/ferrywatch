@@ -1,4 +1,4 @@
-// import cron from "node-cron";
+import cron from "node-cron";
 import yaml from "yaml";
 import ky from "ky";
 import fs from "fs-extra";
@@ -19,58 +19,12 @@ const getSchedule = async (from, to, date) => {
   body.set("destinationCode", to);
   body.set("totalPax", 2);
 
-  //   return await ky
-  //     .post(
-  //       "https://www.cuticutilangkawi.com/hcjSystem/executor.php?Ccl/travelApp/modules/checkOut/getTrip",
-  //       { body }
-  //     )
-  //     .json();
-
-  return {
-    childDobMin: "2011-12-17",
-    childDobMax: "2020-12-16",
-    adultDobMin: "1903-12-17",
-    adultDobMax: "2011-12-16",
-    tripGapMin: 0,
-    departTrip: [
-      {
-        routeID: "4",
-        tripID: "88364",
-        tripDatetime: "04:00 pm",
-        ferryName: "",
-        seatStatus: "58/338",
-        left: 58,
-        unix: 1702713600,
-        date: "2023-12-16",
-        disable: 0,
-      },
-      {
-        routeID: "4",
-        tripID: "87950",
-        tripDatetime: "05:00 pm",
-        ferryName: "",
-        seatStatus: "37/500",
-        left: 37,
-        unix: 1702717200,
-        date: "2023-12-16",
-        disable: 0,
-      },
-      {
-        routeID: "4",
-        tripID: "87951",
-        tripDatetime: "07:00 pm",
-        ferryName: "",
-        seatStatus: "276/400",
-        left: 276,
-        unix: 1702724400,
-        date: "2023-12-16",
-        disable: 0,
-      },
-    ],
-    status: "success",
-    errorNo: 0,
-    errorMessage: "Load trip successful.",
-  };
+  return await ky
+    .post(
+      "https://www.cuticutilangkawi.com/hcjSystem/executor.php?Ccl/travelApp/modules/checkOut/getTrip",
+      { body }
+    )
+    .json();
 };
 
 const filterValidConfig = (configEntry) => {
@@ -206,7 +160,9 @@ const markedAsCompleted = async (watchTrips, cache) => {
   await fs.writeFile(cacheFile, yaml.stringify(cache));
 };
 
-(async () => {
+const main = async () => {
+  console.log(`Cron job executed at: ${new Date().toLocaleString()}`);
+
   const error =
     yaml.parse((await fs.readFile(errFile).catch(() => "")).toString()) || {};
   if (error.cycle && error.cycle % 3 != 0) {
@@ -252,13 +208,15 @@ const markedAsCompleted = async (watchTrips, cache) => {
       await sendError(config.mail, error);
     }
   }
+};
+
+(async () => {
+  const config = await getConfig();
+  console.log(
+    `Cron is running: ${config.cron} - ${new Date().toLocaleString()}`
+  );
+
+  cron.schedule(config.cron, async () => {
+    await main();
+  });
 })();
-
-// function logMessage() {
-//   console.log("Cron job executed at:", new Date().toLocaleString());
-// }
-
-// // Schedule the cron job to run every minute
-// cron.schedule("* * * * *", () => {
-//   logMessage();
-// });

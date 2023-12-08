@@ -1,5 +1,6 @@
 # destination: KP (perlis), PL (langkawi), KK (kedah)
 # date: yyyy-mm-dd
+cron: "*/5 * * * *"
 mail:
   from: example@gmail.com
   to: example@gmail.com
