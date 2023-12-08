@@ -1,0 +1,21 @@
+{
+  "name": "lgkferrywatch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dayjs": "^1.11.10",
+    "esm": "^3.2.25",
+    "fs-extra": "^11.2.0",
+    "ky": "^1.1.3",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.7",
+    "yaml": "^2.3.4"
+  }
+}
