@@ -8,6 +8,7 @@ import isBetween from "dayjs/plugin/isBetween.js";
 dayjs.extend(isBetween);
 
 const cacheFile = "./sent.yaml";
+const errFile = "./error.yaml";
 
 const getSchedule = async (from, to, date) => {
   const body = new URLSearchParams();
@@ -118,7 +119,10 @@ const filterCondition = (configEntry, cache) => (trip) => {
 
   const inCache = cache.some(
     (x) =>
-      x.date == configEntry.date && x.trips.some((y) => y.tripID == trip.tripID)
+      x.date == configEntry.date &&
+      x.trips.some(
+        (y) => y.tripID == trip.tripID && y.ferryName == trip.ferryName
+      )
   );
 
   return tripTime.isBetween(configStart, configEnd, "minute", "[]") && !inCache;
@@ -151,6 +155,17 @@ const sendNotification = async (configMail, watchTrips) => {
   });
 };
 
+const sendError = async (configMail, error) => {
+  const transporter = nodemailer.createTransport(configMail.smtp);
+
+  await transporter.sendMail({
+    from: configMail.from, // sender address
+    to: configMail.to, // list of receivers
+    subject: "Error on feri watcher", // Subject line
+    html: error.exception, // html body
+  });
+};
+
 const markedAsCompleted = async (watchTrips, cache) => {
   watchTrips.forEach(({ config, trips }) => {
     const dayItemIndex = cache.findIndex((item) => item.date == config.date);
@@ -164,15 +179,20 @@ const markedAsCompleted = async (watchTrips, cache) => {
           };
 
     trips.forEach((trip) => {
-      const dayTrip = dayItem.trips.find(
+      const dayTripIndex = dayItem.trips.findIndex(
         (trip2) => trip2.tripID == trip.tripID
       );
 
-      if (!dayTrip) {
-        dayItem.trips.push({
-          tripID: trip.tripID,
-          tripDatetime: trip.tripDatetime,
-        });
+      const newDayTrip = {
+        tripID: trip.tripID,
+        tripDatetime: trip.tripDatetime,
+        ferryName: trip.ferryName,
+      };
+
+      if (dayTripIndex > -1) {
+        dayItem.trips[dayTripIndex] = newDayTrip;
+      } else {
+        dayItem.trips.push(newDayTrip);
       }
     });
 
@@ -187,25 +207,51 @@ const markedAsCompleted = async (watchTrips, cache) => {
 };
 
 (async () => {
+  const error =
+    yaml.parse((await fs.readFile(errFile).catch(() => "")).toString()) || {};
+  if (error.cycle && error.cycle % 3 != 0) {
+    error.cycle += 1;
+    await fs.writeFile(errFile, yaml.stringify(error));
+
+    return;
+  }
+
   const config = await getConfig();
-  await fs.ensureFile(cacheFile);
-  const cache = yaml.parse((await fs.readFile(cacheFile)).toString()) || [];
 
-  const watchTrips = (
-    await Promise.all(
-      config.watch.map(async (entry) => {
-        const allTrips = await getSchedule(entry.from, entry.to, entry.date);
-        const watchTrips = allTrips.departTrip.filter(
-          filterCondition(entry, cache)
-        );
+  try {
+    await fs.ensureFile(cacheFile);
+    const cache = yaml.parse((await fs.readFile(cacheFile)).toString()) || [];
 
-        return { config: entry, trips: watchTrips };
-      })
-    )
-  ).filter((x) => x.trips.length > 0);
+    const watchTrips = (
+      await Promise.all(
+        config.watch.map(async (entry) => {
+          const allTrips = await getSchedule(entry.from, entry.to, entry.date);
+          const watchTrips = allTrips.departTrip.filter(
+            filterCondition(entry, cache)
+          );
 
-  await sendNotification(config.mail, watchTrips);
-  await markedAsCompleted(watchTrips, cache);
+          return { config: entry, trips: watchTrips };
+        })
+      )
+    ).filter((x) => x.trips.length > 0);
+
+    await sendNotification(config.mail, watchTrips);
+    await markedAsCompleted(watchTrips, cache);
+
+    // no error. remove error file
+    if (error.cycle) {
+      await fs.remove(errFile);
+    }
+  } catch (e) {
+    error.cycle = (error.cycle || 0) + 1;
+    error.exception = e.stack;
+
+    await fs.writeFile(errFile, yaml.stringify(error));
+
+    if (error.cycle == 1) {
+      await sendError(config.mail, error);
+    }
+  }
 })();
 
 // function logMessage() {
