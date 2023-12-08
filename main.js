@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import yaml from "yaml";
-import ky from "ky";
+import got from "got";
 import fs from "fs-extra";
 import nodemailer from "nodemailer";
 import dayjs from "dayjs";
@@ -11,18 +11,19 @@ const cacheFile = "./sent.yaml";
 const errFile = "./error.yaml";
 
 const getSchedule = async (from, to, date) => {
-  const body = new URLSearchParams();
-  body.set("comCode", "LFLV");
-  body.set("firstTripUnix", 0);
-  body.set("departDate", date);
-  body.set("originCode", from);
-  body.set("destinationCode", to);
-  body.set("totalPax", 2);
+  const form = {
+    comCode: "LFLV",
+    firstTripUnix: 0,
+    departDate: date,
+    originCode: from,
+    destinationCode: to,
+    totalPax: 2,
+  };
 
-  return await ky
+  return await got
     .post(
       "https://www.cuticutilangkawi.com/hcjSystem/executor.php?Ccl/travelApp/modules/checkOut/getTrip",
-      { body }
+      { form }
     )
     .json();
 };
